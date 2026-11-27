@@ -331,15 +331,38 @@ def test_bad_config_option_type():
         Event('bar'),
         _CharmSpec(MyCharm, {}, config={'options': {'foo': {'type': 'string'}}}),
     )
-    assert_inconsistent(
-        State(config={'foo': True}),
-        Event('bar'),
-        _CharmSpec(MyCharm, {}, config={'options': {'foo': {}}}),
-    )
     assert_consistent(
         State(config={'foo': True}),
         Event('bar'),
         _CharmSpec(MyCharm, {}, config={'options': {'foo': {'type': 'boolean'}}}),
+    )
+
+
+def test_config_option_without_type_is_a_string():
+    # Juju treats an option with no type as a string.
+    spec = _CharmSpec(MyCharm, {}, config={'options': {'foo': {}}})
+    assert_consistent(State(config={'foo': 'bar'}), Event('bar'), spec)
+    assert_inconsistent(State(config={'foo': True}), Event('bar'), spec)
+
+
+@pytest.mark.parametrize(
+    'juju_version,value,consistent',
+    [
+        # Juju 4.1 and later accept integer as another name for int.
+        ('4.1', 1, True),
+        ('4.1', True, False),
+        ('4.1', '1', False),
+        ('4.0', 1, False),
+        ('3.6', 1, False),
+    ],
+)
+def test_config_integer_is_int_from_juju_4_1(juju_version: str, value: Any, consistent: bool):
+    asserter = assert_consistent if consistent else assert_inconsistent
+    asserter(
+        State(config={'foo': value}),
+        Event('bar'),
+        _CharmSpec(MyCharm, {}, config={'options': {'foo': {'type': 'integer'}}}),
+        juju_version=juju_version,
     )
 
 

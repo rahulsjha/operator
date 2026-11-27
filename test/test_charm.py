@@ -697,6 +697,29 @@ def test_config_value_has_type(type_name: str, value: object, expected: bool):
     assert ops.charm._config_value_has_type(value, type_name) is expected
 
 
+@pytest.mark.parametrize(
+    'declared,expected',
+    [
+        (None, 'string'),
+        ('', 'string'),
+        ('integer', 'int'),
+        ('int', 'int'),
+        ('float', 'float'),
+        ('secret', 'secret'),
+    ],
+)
+def test_config_option_type(declared: str | None, expected: str):
+    assert ops.charm._config_option_type(declared) == expected
+
+
+def test_charm_meta_config_type_matches_juju():
+    meta = ops.CharmMeta(
+        config_raw={'options': {'untyped': {'default': 'x'}, 'count': {'type': 'integer'}}}
+    )
+    assert meta.config['untyped'].type == 'string'
+    assert meta.config['count'].type == 'int'
+
+
 def test_config_value_has_type_unknown_type():
     with pytest.raises(ValueError):
         ops.charm._config_value_has_type(1, 'unknown')

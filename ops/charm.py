@@ -1869,19 +1869,10 @@ class CharmMeta:
         }
         self.extra_bindings = raw_.get('extra-bindings', {})
         self.actions = {name: ActionMeta(name, action) for name, action in actions_raw_.items()}
-        # This is predominately for backwards compatibility with Harness. In a
-        # real Juju environment this shouldn't be possible, because charmcraft
-        # validates the config when packing.
-        for name, config in options_raw.items():
-            if 'type' not in config:
-                raise RuntimeError(
-                    f'Incorrectly formatted config in YAML, option {name} is '
-                    f'expected to declare a `type`.'
-                )
         self.config = {
             name: ConfigMeta(
                 name,
-                type=config['type'],
+                type=_config_option_type(config.get('type')),
                 default=config.get('default'),
                 description=config.get('description'),
             )
@@ -2263,6 +2254,22 @@ def _default_additional_properties(juju_version: JujuVersion | None = None) -> b
     if juju_version is None:
         juju_version = JujuVersion(os.environ.get('JUJU_VERSION', '0.0.0'))
     return juju_version < '4.0.0'
+
+
+def _config_option_type(declared: Any) -> Any:
+    """Return the config option type that Juju uses for a declared ``type``.
+
+    Juju treats an option with no ``type`` as a ``string``, and Juju 4.1 and
+    later accept ``integer`` as another name for ``int``. Any other value is
+    returned as it is.
+    """
+    # https://github.com/juju/charm/blob/v12/config.go
+    # https://github.com/juju/juju/blob/4.1/domain/deployment/charm/config.go
+    if not declared:
+        return 'string'
+    if declared == 'integer':
+        return 'int'
+    return declared
 
 
 def _config_value_has_type(value: object, type_name: str) -> bool:  # pyright: ignore[reportUnusedFunction]

@@ -29,7 +29,11 @@ from numbers import Number
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from ops import ActionMeta, JujuVersion, pebble
-from ops.charm import _config_value_has_type, _default_additional_properties
+from ops.charm import (
+    _config_option_type,
+    _config_value_has_type,
+    _default_additional_properties,
+)
 
 from ._runtime import logger as scenario_logger
 from .errors import InconsistentScenarioError
@@ -473,20 +477,21 @@ def check_config_consistency(
             )
             continue
 
-        expected_type_name = meta_config[key].get('type', None)
-        if not expected_type_name:
-            errors.append(f"config.yaml invalid; option {key!r} has no 'type'.")
-            continue
-
+        # Juju treats an option with no type as a string.
+        declared_type = meta_config[key].get('type') or 'string'
         known_types = {'string', 'int', 'float', 'boolean'}
         if juju_version >= '3.4':
             known_types.add('secret')
-        if expected_type_name not in known_types:
+        if juju_version >= '4.1':
+            known_types.add('integer')
+        if declared_type not in known_types:
             errors.append(
-                f"config invalid for option {key!r}: 'type' {expected_type_name} unknown",
+                f"config invalid for option {key!r}: 'type' {declared_type} unknown",
             )
+            continue
 
-        elif not _config_value_has_type(value, expected_type_name):
+        expected_type_name = _config_option_type(declared_type)
+        if not _config_value_has_type(value, expected_type_name):
             errors.append(
                 f'config invalid; option {key!r} should be of type {expected_type_name} '
                 f'but is of type {type(value).__name__}.',
